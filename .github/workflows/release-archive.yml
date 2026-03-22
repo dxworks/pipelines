@@ -1,0 +1,65 @@
+name: Release Archive
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Semver version string (e.g. 2.13.0)
+        type: string
+        required: true
+      java-version:
+        description: Java version to set up (empty to skip)
+        type: string
+        default: ''
+      node-version:
+        description: Node.js version to set up (empty to skip)
+        type: string
+        default: ''
+      build-script:
+        description: Path to build script
+        type: string
+        default: ./scripts/build.sh
+      prepare-script:
+        description: Path to release preparation script
+        type: string
+        default: ./scripts/prepare-release.sh
+      archive-name:
+        description: Name for the uploaded artifact
+        type: string
+        default: release-archive
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        if: inputs.java-version != ''
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: temurin
+
+      - name: Set up Node.js
+        if: inputs.node-version != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Build
+        run: |
+          chmod +x ${{ inputs.build-script }}
+          ${{ inputs.build-script }}
+
+      - name: Prepare release archive
+        run: |
+          chmod +x ${{ inputs.prepare-script }}
+          ${{ inputs.prepare-script }} ${{ inputs.version }}
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.archive-name }}
+          path: "*.zip"
+          if-no-files-found: error

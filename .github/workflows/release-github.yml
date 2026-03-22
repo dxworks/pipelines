@@ -1,0 +1,94 @@
+name: Release GitHub
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Semver version string (e.g. 2.13.0)
+        type: string
+        required: true
+      tag:
+        description: Git tag name (e.g. v2.13.0)
+        type: string
+        required: true
+      release-name:
+        description: Release name (e.g. "Insider 2.13.0"). Empty to use tag name.
+        type: string
+        default: ''
+      artifact-name:
+        description: Name of the uploaded artifact to download
+        type: string
+        default: release-archive
+      asset-name:
+        description: Name for the release asset file (e.g. insider.zip)
+        type: string
+        required: true
+      prerelease:
+        description: Mark as pre-release
+        type: boolean
+        default: false
+      draft:
+        description: Create as draft
+        type: boolean
+        default: false
+      release-notes-file:
+        description: Path to release notes file. Empty to auto-generate from PRs/commits.
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  github-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+
+      - name: Rename asset
+        run: |
+          ZIP_FILE=$(ls *.zip | head -1)
+          if [ "$ZIP_FILE" != "${{ inputs.asset-name }}" ]; then
+            mv "$ZIP_FILE" "${{ inputs.asset-name }}"
+          fi
+
+      - name: Create or update GitHub Release
+        run: |
+          ARGS=()
+          ARGS+=("${{ inputs.tag }}")
+          ARGS+=("${{ inputs.asset-name }}")
+
+          # Release name
+          if [ -n "${{ inputs.release-name }}" ]; then
+            ARGS+=(--title "${{ inputs.release-name }}")
+          fi
+
+          # Release notes
+          if [ -n "${{ inputs.release-notes-file }}" ] && [ -f "${{ inputs.release-notes-file }}" ]; then
+            ARGS+=(--notes-file "${{ inputs.release-notes-file }}")
+          else
+            ARGS+=(--generate-notes)
+          fi
+
+          # Flags
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            ARGS+=(--prerelease)
+          fi
+          if [ "${{ inputs.draft }}" = "true" ]; then
+            ARGS+=(--draft)
+          fi
+
+          # Idempotent: update if release already exists
+          if gh release view "${{ inputs.tag }}" &>/dev/null; then
+            echo "Release already exists, uploading asset..."
+            gh release upload "${{ inputs.tag }}" "${{ inputs.asset-name }}" --clobber
+          else
+            gh release create "${ARGS[@]}"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

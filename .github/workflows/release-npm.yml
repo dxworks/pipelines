@@ -1,0 +1,76 @@
+name: Release NPM
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Semver version string (e.g. 2.13.0)
+        type: string
+        required: true
+      node-version:
+        description: Node.js version to use
+        type: string
+        default: '20'
+      build-script:
+        description: Path to build script (empty to skip)
+        type: string
+        default: ''
+      publish-github-packages:
+        description: Publish to GitHub Packages
+        type: boolean
+        default: true
+      publish-npmjs:
+        description: Publish to npmjs.org via OIDC Trusted Publishers
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  npm-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js for GitHub Packages
+        if: inputs.publish-github-packages
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: https://npm.pkg.github.com
+          scope: '@dxworks'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        if: inputs.build-script != ''
+        run: |
+          chmod +x ${{ inputs.build-script }}
+          ${{ inputs.build-script }}
+
+      - name: Set version
+        run: npm version ${{ inputs.version }} --no-git-tag-version
+
+      - name: Publish to GitHub Packages
+        if: inputs.publish-github-packages
+        run: npm publish || { [ $? -eq 1 ] && npm view . version 2>/dev/null | grep -q "${{ inputs.version }}" && echo "Already published, skipping." || exit 1; }
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+
+      - name: Set up Node.js for npmjs.org
+        if: inputs.publish-npmjs
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: https://registry.npmjs.org
+          scope: '@dxworks'
+
+      - name: Publish to npmjs.org with provenance
+        if: inputs.publish-npmjs
+        run: npm publish --provenance --access public || { [ $? -eq 1 ] && npm view . version 2>/dev/null | grep -q "${{ inputs.version }}" && echo "Already published, skipping." || exit 1; }
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}

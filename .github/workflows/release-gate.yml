@@ -1,0 +1,58 @@
+name: Release Gate
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: Java version to set up (empty to skip)
+        type: string
+        default: ''
+      node-version:
+        description: Node.js version to set up (empty to skip)
+        type: string
+        default: ''
+      build-script:
+        description: Path to build script
+        type: string
+        default: ./scripts/build.sh
+      trivy-severity:
+        description: Trivy severity threshold
+        type: string
+        default: HIGH,CRITICAL
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        if: inputs.java-version != ''
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: temurin
+
+      - name: Set up Node.js
+        if: inputs.node-version != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Build and test
+        run: |
+          chmod +x ${{ inputs.build-script }}
+          ${{ inputs.build-script }}
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: 1
+          severity: ${{ inputs.trivy-severity }}
