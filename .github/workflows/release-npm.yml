@@ -33,11 +33,11 @@ jobs:
   npm-publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Node.js for GitHub Packages
         if: inputs.publish-github-packages
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ inputs.node-version }}
           registry-url: https://npm.pkg.github.com
@@ -63,7 +63,7 @@ jobs:
 
       - name: Set up Node.js for npmjs.org
         if: inputs.publish-npmjs
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ inputs.node-version }}
           registry-url: https://registry.npmjs.org

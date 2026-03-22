@@ -45,18 +45,18 @@ jobs:
   trivy-image-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Java
         if: inputs.java-version != ''
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ inputs.java-version }}
           distribution: temurin
 
       - name: Set up Node.js
         if: inputs.node-version != ''
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ inputs.node-version }}
 
@@ -96,7 +96,7 @@ jobs:
 
       - name: Checkout pipelines scripts
         if: always() && inputs.post-pr-comment && github.event_name == 'pull_request'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: dxworks/pipelines
           path: .pipelines

@@ -24,7 +24,7 @@ jobs:
   trivy-fs-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run Trivy filesystem scanner (table)
         uses: aquasecurity/trivy-action@master
@@ -55,7 +55,7 @@ jobs:
     if: inputs.image-ref != ''
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run Trivy image scanner (table)
         uses: aquasecurity/trivy-action@master
