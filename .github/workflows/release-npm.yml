@@ -10,7 +10,7 @@ on:
       node-version:
         description: Node.js version to use
         type: string
-        default: '20'
+        default: '24'
       build-script:
         description: Path to build script (empty to skip)
         type: string
