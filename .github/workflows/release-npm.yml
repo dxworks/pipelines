@@ -55,9 +55,22 @@ jobs:
       - name: Set version
         run: npm version ${{ inputs.version }} --no-git-tag-version
 
+      - name: Determine dist-tag
+        id: dist-tag
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [[ "$VERSION" == *-* ]]; then
+            TAG_NAME=$(echo "$VERSION" | sed 's/.*-//' | sed 's/\..*//')
+            echo "tag=--tag $TAG_NAME" >> $GITHUB_OUTPUT
+            echo "Publishing as prerelease with dist-tag: $TAG_NAME"
+          else
+            echo "tag=" >> $GITHUB_OUTPUT
+            echo "Publishing as latest"
+          fi
+
       - name: Publish to GitHub Packages
         if: inputs.publish-github-packages
-        run: npm publish || { [ $? -eq 1 ] && npm view . version 2>/dev/null | grep -q "${{ inputs.version }}" && echo "Already published, skipping." || exit 1; }
+        run: npm publish ${{ steps.dist-tag.outputs.tag }} || { [ $? -eq 1 ] && npm view . version 2>/dev/null | grep -q "${{ inputs.version }}" && echo "Already published, skipping." || exit 1; }
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
 
@@ -71,6 +84,6 @@ jobs:
 
       - name: Publish to npmjs.org with provenance
         if: inputs.publish-npmjs
-        run: npm publish --provenance --access public || { [ $? -eq 1 ] && npm view . version 2>/dev/null | grep -q "${{ inputs.version }}" && echo "Already published, skipping." || exit 1; }
+        run: npm publish --provenance --access public ${{ steps.dist-tag.outputs.tag }} || { [ $? -eq 1 ] && npm view . version 2>/dev/null | grep -q "${{ inputs.version }}" && echo "Already published, skipping." || exit 1; }
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
