@@ -1,0 +1,106 @@
+name: Trivy Image Scan
+
+on:
+  workflow_call:
+    inputs:
+      image-ref:
+        description: Docker image to scan (e.g. dxworks/insider:latest)
+        type: string
+        required: true
+      severity:
+        description: Severity levels to report
+        type: string
+        default: MEDIUM,HIGH,CRITICAL
+      fail-on-findings:
+        description: Fail the workflow if vulnerabilities are found
+        type: boolean
+        default: true
+      post-pr-comment:
+        description: Post a PR comment with results (only works on pull_request events)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+jobs:
+  trivy-image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy image scanner (table)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: ${{ inputs.image-ref }}
+          format: table
+          exit-code: 0
+          severity: ${{ inputs.severity }}
+
+      - name: Run Trivy image scanner (sarif)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: ${{ inputs.image-ref }}
+          format: sarif
+          output: trivy-image-results.sarif
+          exit-code: ${{ inputs.fail-on-findings && '1' || '0' }}
+          severity: ${{ inputs.severity }}
+
+      - name: Upload image scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-image-results.sarif
+          category: trivy-image
+
+      - name: Post PR comment with image scan results
+        if: always() && inputs.post-pr-comment && github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const sarifFile = 'trivy-image-results.sarif';
+            const marker = '## Trivy Docker Image Scan';
+            if (!fs.existsSync(sarifFile)) return;
+            const sarif = JSON.parse(fs.readFileSync(sarifFile, 'utf8'));
+            const results = sarif.runs.flatMap(run => run.results || []);
+            const prNumber = context.issue.number;
+            const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
+            const securityUrl = `${repoUrl}/security/code-scanning?query=is%3Aopen+ref%3Arefs%2Fpull%2F${prNumber}%2Fmerge+tool%3ATrivy`;
+            let body;
+            if (results.length === 0) {
+              body = `${marker}\n\n:white_check_mark: No vulnerabilities found in the Docker image.`;
+            } else {
+              const severityEmoji = { error: ':red_circle:', warning: ':orange_circle:', note: ':yellow_circle:' };
+              const rows = results.map(r => {
+                const emoji = severityEmoji[r.level] || ':white_circle:';
+                const desc = (r.message?.text || '').split('\n')[0].substring(0, 120);
+                const cveId = r.ruleId;
+                const cveLink = cveId.startsWith('CVE-')
+                  ? `[${cveId}](https://avd.aquasec.com/nvd/${cveId.toLowerCase()})`
+                  : cveId.startsWith('GHSA-')
+                    ? `[${cveId}](https://github.com/advisories/${cveId})`
+                    : `\`${cveId}\``;
+                return `| ${emoji} ${r.level || 'unknown'} | ${cveLink} | ${desc} |`;
+              });
+              body = [
+                marker, '',
+                `:rotating_light: Found **${results.length}** vulnerability(ies) in the Docker image.`, '',
+                '| Severity | CVE | Description |',
+                '|----------|-----|-------------|',
+                ...rows, '',
+                `[:mag: View all findings in the Security tab](${securityUrl})`, '',
+                '> These are OS-level vulnerabilities in the container base image.'
+              ].join('\n');
+            }
+            const comments = await github.rest.issues.listComments({ owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber });
+            const existing = comments.data.find(c => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber, body });
+            }

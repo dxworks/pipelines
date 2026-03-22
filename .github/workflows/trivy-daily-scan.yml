@@ -1,0 +1,83 @@
+name: Trivy Daily Scan
+
+on:
+  workflow_call:
+    inputs:
+      image-ref:
+        description: Docker image to scan (e.g. dxworks/insider:latest). Empty to skip image scan.
+        type: string
+        default: ''
+      severity:
+        description: Severity levels to report
+        type: string
+        default: MEDIUM,HIGH,CRITICAL
+      cron:
+        description: Cron schedule (informational only — must also be set in caller workflow)
+        type: string
+        default: '0 6 * * *'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy-fs-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scanner (table)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: 0
+          severity: ${{ inputs.severity }}
+
+      - name: Run Trivy filesystem scanner (sarif)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs-results.sarif
+          severity: ${{ inputs.severity }}
+
+      - name: Upload filesystem scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-fs-results.sarif
+          category: trivy-fs-daily
+
+  trivy-image-scan:
+    if: inputs.image-ref != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy image scanner (table)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: ${{ inputs.image-ref }}
+          format: table
+          exit-code: 0
+          severity: ${{ inputs.severity }}
+
+      - name: Run Trivy image scanner (sarif)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: ${{ inputs.image-ref }}
+          format: sarif
+          output: trivy-image-results.sarif
+          severity: ${{ inputs.severity }}
+
+      - name: Upload image scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-image-results.sarif
+          category: trivy-image-daily
