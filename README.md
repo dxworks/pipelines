@@ -28,17 +28,39 @@ Scans a Docker image for OS and application vulnerabilities. Optionally posts a 
 
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
-| `image-ref` | string | *required* | Docker image to scan (e.g. `dxworks/insider:latest`) |
+| `image-ref` | string | *required* | Docker image to scan. When `build-context` is set, used as the tag for the built image. |
+| `build-context` | string | `''` | Path to Docker build context (e.g. `.`). When set, builds the image instead of pulling it. |
+| `build-setup` | string | `''` | Shell commands to run before `docker build` (e.g. `gradle clean build`). |
+| `java-version` | string | `''` | Java version to set up before build (empty to skip). |
+| `node-version` | string | `''` | Node.js version to set up before build (empty to skip). |
 | `severity` | string | `MEDIUM,HIGH,CRITICAL` | Severity levels to report |
 | `fail-on-findings` | boolean | `true` | Fail the workflow if vulnerabilities are found |
 | `post-pr-comment` | boolean | `false` | Post a sticky PR comment with results |
 
+**Pull and scan a published image:**
 ```yaml
 jobs:
   trivy-image:
     uses: dxworks/pipelines/.github/workflows/trivy-image-scan.yml@v1
     with:
       image-ref: dxworks/my-app:latest
+      post-pr-comment: true
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+```
+
+**Build from Dockerfile and scan (e.g. on PRs):**
+```yaml
+jobs:
+  trivy-image:
+    uses: dxworks/pipelines/.github/workflows/trivy-image-scan.yml@v1
+    with:
+      image-ref: my-app:${{ github.sha }}
+      build-context: .
+      build-setup: gradle clean build
+      java-version: '21'
       post-pr-comment: true
     permissions:
       contents: read

@@ -4,9 +4,25 @@ on:
   workflow_call:
     inputs:
       image-ref:
-        description: Docker image to scan (e.g. dxworks/insider:latest)
+        description: Docker image to scan. When build-context is set, this is used as the tag for the built image.
         type: string
         required: true
+      build-context:
+        description: Path to Docker build context (e.g. "."). When set, builds the image from Dockerfile instead of pulling it.
+        type: string
+        default: ''
+      build-setup:
+        description: Shell commands to run before docker build (e.g. "gradle clean build"). Empty to skip.
+        type: string
+        default: ''
+      java-version:
+        description: Java version to set up before build (empty to skip)
+        type: string
+        default: ''
+      node-version:
+        description: Node.js version to set up before build (empty to skip)
+        type: string
+        default: ''
       severity:
         description: Severity levels to report
         type: string
@@ -30,6 +46,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Java
+        if: inputs.java-version != ''
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: temurin
+
+      - name: Set up Node.js
+        if: inputs.node-version != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Run build setup
+        if: inputs.build-setup != ''
+        run: ${{ inputs.build-setup }}
+
+      - name: Build Docker image
+        if: inputs.build-context != ''
+        run: docker build -t ${{ inputs.image-ref }} ${{ inputs.build-context }}
 
       - name: Run Trivy image scanner (table)
         uses: aquasecurity/trivy-action@master
