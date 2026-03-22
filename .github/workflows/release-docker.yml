@@ -78,6 +78,30 @@ jobs:
           chmod +x ${{ inputs.build-script }}
           ${{ inputs.build-script }}
 
+      - name: Build image for scanning
+        run: |
+          docker build -t ${{ inputs.image-name }}:scan \
+            -f ${{ inputs.dockerfile }} \
+            ${{ inputs.context }}
+
+      - name: Trivy scan - block on CRITICAL
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: ${{ inputs.image-name }}:scan
+          format: table
+          exit-code: 1
+          severity: CRITICAL
+
+      - name: Trivy scan - warn on other severities
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: ${{ inputs.image-name }}:scan
+          format: table
+          exit-code: 0
+          severity: MEDIUM,HIGH
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -99,7 +123,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Build and push Docker image
+      - name: Build and push multi-arch Docker image
         uses: docker/build-push-action@v6
         with:
           context: ${{ inputs.context }}
