@@ -27,8 +27,12 @@ on:
         description: Severity levels to report
         type: string
         default: MEDIUM,HIGH,CRITICAL
+      fail-severity:
+        description: Severity levels that cause the workflow to fail (defaults to all severities, i.e. fail on any finding). Reporting is controlled separately by `severity`.
+        type: string
+        default: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
       fail-on-findings:
-        description: Fail the workflow if vulnerabilities are found
+        description: Fail the workflow if vulnerabilities are found (at the levels in `fail-severity`)
         type: boolean
         default: true
       post-pr-comment:
@@ -77,6 +81,10 @@ jobs:
           exit-code: 0
           severity: ${{ inputs.severity }}
 
+      # Report-only: trivy-action always builds the SARIF over all severities,
+      # so this step never gates (the dedicated "Fail on configured severities"
+      # step below owns the pass/fail decision). This keeps the full set of
+      # findings visible in the Security tab regardless of fail-severity.
       - name: Run Trivy image scanner (sarif)
         uses: aquasecurity/trivy-action@master
         with:
@@ -84,7 +92,7 @@ jobs:
           image-ref: ${{ inputs.image-ref }}
           format: sarif
           output: trivy-image-results.sarif
-          exit-code: ${{ inputs.fail-on-findings && '1' || '0' }}
+          exit-code: 0
           severity: ${{ inputs.severity }}
 
       - name: Upload image scan results to GitHub Security tab
@@ -108,3 +116,15 @@ jobs:
           script: |
             const script = require('./.pipelines/scripts/trivy-pr-comment.js');
             await script({ github, context });
+
+      # Gate: fails only on the severities in `fail-severity` (default: all).
+      # Runs after reporting/upload so findings are always recorded first.
+      - name: Fail on configured severities
+        if: always() && inputs.fail-on-findings
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: ${{ inputs.image-ref }}
+          format: table
+          exit-code: 1
+          severity: ${{ inputs.fail-severity }}
