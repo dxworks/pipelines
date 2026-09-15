@@ -126,6 +126,7 @@ Publishes an npm package to GitHub Packages and/or npmjs.org. Uses OIDC Trusted 
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
 | `version` | string | *required* | Semver version string |
+| `java-version` | string | `''` | Java version to set up (empty to skip) |
 | `node-version` | string | `'20'` | Node.js version |
 | `build-script` | string | `''` | Path to build script (empty to skip) |
 | `publish-github-packages` | boolean | `true` | Publish to GitHub Packages |

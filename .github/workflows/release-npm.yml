@@ -7,6 +7,10 @@ on:
         description: Semver version string (e.g. 2.13.0)
         type: string
         required: true
+      java-version:
+        description: Java version to set up (empty to skip)
+        type: string
+        default: ''
       node-version:
         description: Node.js version to use
         type: string
@@ -34,6 +38,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
+      - name: Set up Java
+        if: inputs.java-version != ''
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: temurin
 
       - name: Set up Node.js for GitHub Packages
         if: inputs.publish-github-packages
