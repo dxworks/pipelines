@@ -12,7 +12,8 @@ Scans source code dependencies for known vulnerabilities and uploads results to 
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
 | `severity` | string | `MEDIUM,HIGH,CRITICAL` | Severity levels to report |
-| `fail-on-findings` | boolean | `true` | Fail the workflow if vulnerabilities are found |
+| `fail-severity` | string | `UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL` | Severity levels that cause a failure (defaults to all, i.e. fail on any finding). Reporting is controlled separately by `severity`. |
+| `fail-on-findings` | boolean | `true` | Fail the workflow if found (at the levels in `fail-severity`) |
 
 ```yaml
 jobs:
@@ -34,7 +35,8 @@ Scans a Docker image for OS and application vulnerabilities. Optionally posts a 
 | `java-version` | string | `''` | Java version to set up before build (empty to skip). |
 | `node-version` | string | `''` | Node.js version to set up before build (empty to skip). |
 | `severity` | string | `MEDIUM,HIGH,CRITICAL` | Severity levels to report |
-| `fail-on-findings` | boolean | `true` | Fail the workflow if vulnerabilities are found |
+| `fail-severity` | string | `UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL` | Severity levels that cause a failure (defaults to all, i.e. fail on any finding). Reporting is controlled separately by `severity`. |
+| `fail-on-findings` | boolean | `true` | Fail the workflow if found (at the levels in `fail-severity`) |
 | `post-pr-comment` | boolean | `false` | Post a sticky PR comment with results |
 
 **Pull and scan a published image:**
@@ -75,6 +77,7 @@ Scheduled daily scan for dependencies and (optionally) a Docker image. Results g
 |-------|------|---------|-------------|
 | `image-ref` | string | `''` | Docker image to scan (empty to skip image scan) |
 | `severity` | string | `MEDIUM,HIGH,CRITICAL` | Severity levels to report |
+| `cron` | string | `0 6 * * *` | Cron schedule (informational only — must also be set in the caller workflow) |
 
 ```yaml
 name: Daily Security Scan
@@ -127,7 +130,7 @@ Publishes an npm package to GitHub Packages and/or npmjs.org. Uses OIDC Trusted 
 |-------|------|---------|-------------|
 | `version` | string | *required* | Semver version string |
 | `java-version` | string | `''` | Java version to set up (empty to skip) |
-| `node-version` | string | `'20'` | Node.js version |
+| `node-version` | string | `'24'` | Node.js version |
 | `build-script` | string | `''` | Path to build script (empty to skip) |
 | `publish-github-packages` | boolean | `true` | Publish to GitHub Packages |
 | `publish-npmjs` | boolean | `true` | Publish to npmjs.org via OIDC |
@@ -142,7 +145,11 @@ Builds and pushes a multi-arch Docker image (linux/amd64 + linux/arm64 by defaul
 | `version` | string | *required* | Semver version string |
 | `image-name` | string | *required* | Docker image name (e.g. `dxworks/insider`) |
 | `platforms` | string | `linux/amd64,linux/arm64` | Target platforms |
+| `java-version` | string | `''` | Java version to set up before build (empty to skip) |
+| `node-version` | string | `''` | Node.js version to set up before build (empty to skip) |
 | `build-script` | string | `''` | Build script to run before docker build |
+| `context` | string | `.` | Docker build context path |
+| `dockerfile` | string | `Dockerfile` | Path to Dockerfile |
 | `push-dockerhub` | boolean | `true` | Push to Docker Hub |
 | `push-ghcr` | boolean | `false` | Push to GitHub Container Registry |
 
