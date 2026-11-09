@@ -15,6 +15,14 @@ on:
         description: Fail the workflow if vulnerabilities are found (at the levels in `fail-severity`)
         type: boolean
         default: true
+      java-version:
+        description: Java version used to pre-resolve Maven dependencies (only when a pom.xml is present)
+        type: string
+        default: '21'
+      maven-resolve-command:
+        description: Maven goals used to populate ~/.m2 before scanning, so Trivy does not hit Maven Central (429). Empty to skip.
+        type: string
+        default: install -DskipTests
 
 permissions:
   contents: read
@@ -26,32 +34,50 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Run Trivy filesystem scanner (table)
-        uses: aquasecurity/trivy-action@master
+      # Trivy resolves parent POMs/BOMs/transitive deps from ~/.m2 first and
+      # only falls back to Maven Central. GitHub runners share IPs, so Central
+      # rate-limits them (429, Retry-After: 1800). Populating and caching ~/.m2
+      # keeps Trivy off the network.
+      - name: Set up Java (with Maven cache)
+        if: hashFiles('**/pom.xml') != '' && inputs.maven-resolve-command != ''
+        uses: actions/setup-java@v5
         with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          exit-code: 0
-          severity: ${{ inputs.severity }}
+          distribution: temurin
+          java-version: ${{ inputs.java-version }}
+          cache: maven
 
-      # Report-only: trivy-action always builds the SARIF over all severities,
-      # so this step never gates (the dedicated "Fail on configured severities"
-      # step below owns the pass/fail decision). This keeps the full set of
-      # findings visible in the Security tab regardless of fail-severity.
-      - name: Run Trivy filesystem scanner (sarif)
+      # Non-fatal: whatever gets resolved still reduces remote lookups.
+      - name: Pre-resolve Maven dependencies
+        if: hashFiles('**/pom.xml') != '' && inputs.maven-resolve-command != ''
+        continue-on-error: true
+        env:
+          MAVEN_GOALS: ${{ inputs.maven-resolve-command }}
+        run: |
+          MVN=mvn; [ -x ./mvnw ] && MVN=./mvnw
+          $MVN -B -ntp -q $MAVEN_GOALS
+
+      # Scan once (all severities) and derive every report from the JSON, so
+      # dependency resolution happens a single time instead of once per step.
+      - name: Run Trivy filesystem scanner
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: .
-          format: sarif
-          output: trivy-fs-results.sarif
+          format: json
+          output: trivy-fs-results.json
           exit-code: 0
-          severity: ${{ inputs.severity }}
+
+      - name: Report (table)
+        run: trivy convert --format table --severity "${{ inputs.severity }}" trivy-fs-results.json
+
+      # Report-only: the SARIF covers all severities so the Security tab shows
+      # every finding regardless of fail-severity.
+      - name: Report (sarif)
+        run: trivy convert --format sarif --output trivy-fs-results.sarif trivy-fs-results.json
 
       - name: Upload filesystem scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        if: always() && hashFiles('trivy-fs-results.sarif') != ''
         with:
           sarif_file: trivy-fs-results.sarif
           category: trivy-fs
@@ -59,11 +85,5 @@ jobs:
       # Gate: fails only on the severities in `fail-severity` (default: all).
       # Runs after reporting/upload so findings are always recorded first.
       - name: Fail on configured severities
-        if: always() && inputs.fail-on-findings
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          exit-code: 1
-          severity: ${{ inputs.fail-severity }}
+        if: inputs.fail-on-findings
+        run: trivy convert --format table --exit-code 1 --severity "${{ inputs.fail-severity }}" trivy-fs-results.json
