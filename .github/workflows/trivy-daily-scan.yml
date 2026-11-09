@@ -15,6 +15,14 @@ on:
         description: Cron schedule (informational only — must also be set in caller workflow)
         type: string
         default: '0 6 * * *'
+      java-version:
+        description: Java version used to pre-resolve Maven dependencies (only when a pom.xml is present)
+        type: string
+        default: '21'
+      maven-resolve-command:
+        description: Maven goals used to populate ~/.m2 before scanning, so Trivy does not hit Maven Central (429). Empty to skip.
+        type: string
+        default: install -DskipTests
 
 permissions:
   contents: read
@@ -26,27 +34,43 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Run Trivy filesystem scanner (table)
-        uses: aquasecurity/trivy-action@master
+      # See trivy-fs-scan.yml: populate/cache ~/.m2 so Trivy does not hit
+      # Maven Central from shared runner IPs (429 Too Many Requests).
+      - name: Set up Java (with Maven cache)
+        if: hashFiles('**/pom.xml') != '' && inputs.maven-resolve-command != ''
+        uses: actions/setup-java@v5
         with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          exit-code: 0
-          severity: ${{ inputs.severity }}
+          distribution: temurin
+          java-version: ${{ inputs.java-version }}
+          cache: maven
 
-      - name: Run Trivy filesystem scanner (sarif)
+      - name: Pre-resolve Maven dependencies
+        if: hashFiles('**/pom.xml') != '' && inputs.maven-resolve-command != ''
+        continue-on-error: true
+        env:
+          MAVEN_GOALS: ${{ inputs.maven-resolve-command }}
+        run: |
+          MVN=mvn; [ -x ./mvnw ] && MVN=./mvnw
+          $MVN -B -ntp -q $MAVEN_GOALS
+
+      - name: Run Trivy filesystem scanner
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: .
-          format: sarif
-          output: trivy-fs-results.sarif
-          severity: ${{ inputs.severity }}
+          format: json
+          output: trivy-fs-results.json
+          exit-code: 0
+
+      - name: Report (table)
+        run: trivy convert --format table --severity "${{ inputs.severity }}" trivy-fs-results.json
+
+      - name: Report (sarif)
+        run: trivy convert --format sarif --severity "${{ inputs.severity }}" --output trivy-fs-results.sarif trivy-fs-results.json
 
       - name: Upload filesystem scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        if: always() && hashFiles('trivy-fs-results.sarif') != ''
         with:
           sarif_file: trivy-fs-results.sarif
           category: trivy-fs-daily

@@ -14,6 +14,10 @@ Scans source code dependencies for known vulnerabilities and uploads results to 
 | `severity` | string | `MEDIUM,HIGH,CRITICAL` | Severity levels to report |
 | `fail-severity` | string | `UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL` | Severity levels that cause a failure (defaults to all, i.e. fail on any finding). Reporting is controlled separately by `severity`. |
 | `fail-on-findings` | boolean | `true` | Fail the workflow if found (at the levels in `fail-severity`) |
+| `java-version` | string | `21` | Java version used to pre-resolve Maven dependencies (only when a `pom.xml` is present) |
+| `maven-resolve-command` | string | `install -DskipTests` | Maven goals run before scanning to populate `~/.m2`, so Trivy does not fetch POMs from Maven Central (avoids `429 Too Many Requests`). Empty to skip. |
+
+Maven projects: dependencies are resolved (and cached via `actions/setup-java`) before Trivy runs, and Trivy runs once — table, SARIF and the fail gate are produced with `trivy convert`. This keeps the scan off Maven Central, which rate-limits shared GitHub runner IPs.
 
 ```yaml
 jobs:
@@ -78,6 +82,8 @@ Scheduled daily scan for dependencies and (optionally) a Docker image. Results g
 | `image-ref` | string | `''` | Docker image to scan (empty to skip image scan) |
 | `severity` | string | `MEDIUM,HIGH,CRITICAL` | Severity levels to report |
 | `cron` | string | `0 6 * * *` | Cron schedule (informational only — must also be set in the caller workflow) |
+| `java-version` | string | `21` | Java version used to pre-resolve Maven dependencies (only when a `pom.xml` is present) |
+| `maven-resolve-command` | string | `install -DskipTests` | Maven goals run before scanning to populate `~/.m2`, so Trivy does not fetch POMs from Maven Central (avoids `429 Too Many Requests`). Empty to skip. |
 
 ```yaml
 name: Daily Security Scan
