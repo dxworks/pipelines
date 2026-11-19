@@ -183,8 +183,10 @@ Builds the docs with [Zensical](https://zensical.org) and publishes them to GitH
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
 | `ref` | string | `''` | Branch to build the docs from (empty for the repo's default branch) |
+| `working-directory` | string | `.` | Folder that holds the docs config file (paths below are relative to it) |
 | `config-file` | string | `mkdocs.yml` | Docs config file |
 | `docs-dir` | string | `docs` | Folder with the Markdown docs |
+| `strict` | boolean | `false` | Fail the build on warnings such as broken links |
 | `theme-ref` | string | `v1` | `dxworks/pipelines` tag or branch to take the shared theme from |
 
 The consuming repo needs:
