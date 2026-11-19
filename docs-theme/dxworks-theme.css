@@ -24,7 +24,7 @@
 }
 
 /* Copy button: above the code box on the right, level with the tab labels */
-.md-typeset :not(.tabbed-block) > .highlight > pre {
+.md-typeset :not(.tabbed-block) > .highlight > pre:has(.md-code__nav) {
   margin-top: 2.2rem;
 }
 .md-typeset .md-code__nav {

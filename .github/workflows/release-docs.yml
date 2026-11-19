@@ -66,7 +66,7 @@ jobs:
           CONFIG_FILE: ${{ inputs.config-file }}
         run: |
           mkdir -p "$DOCS_DIR/stylesheets"
-          curl -fsSL "https://raw.githubusercontent.com/dxworks/pipelines/$THEME_REF/docs-theme/dxworks-theme.css" \
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/dxworks/pipelines/$THEME_REF/docs-theme/dxworks-theme.css" \
             -o "$DOCS_DIR/stylesheets/dxworks-theme.css"
           grep -q 'stylesheets/dxworks-theme.css' "$CONFIG_FILE" \
             || echo "::warning::$CONFIG_FILE does not list stylesheets/dxworks-theme.css in extra_css"
