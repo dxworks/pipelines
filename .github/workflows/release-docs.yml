@@ -1,0 +1,85 @@
+name: Release Docs
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Branch to build the docs from (empty for the repo's default branch)
+        type: string
+        default: ''
+      working-directory:
+        description: Folder that holds the docs config file (paths below are relative to it)
+        type: string
+        default: .
+      config-file:
+        description: Docs config file
+        type: string
+        default: mkdocs.yml
+      docs-dir:
+        description: Folder with the Markdown docs
+        type: string
+        default: docs
+      strict:
+        description: Fail the build on warnings such as broken links
+        type: boolean
+        default: false
+      theme-ref:
+        description: dxworks/pipelines tag or branch to take the shared theme from
+        type: string
+        default: v1
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Docs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.event.repository.default_branch }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.x
+
+      - name: Install Zensical
+        run: pip install zensical==0.1.1
+
+      - name: Add shared theme
+        env:
+          THEME_REF: ${{ inputs.theme-ref }}
+          DOCS_DIR: ${{ inputs.docs-dir }}
+          CONFIG_FILE: ${{ inputs.config-file }}
+        run: |
+          mkdir -p "$DOCS_DIR/stylesheets"
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/dxworks/pipelines/$THEME_REF/docs-theme/dxworks-theme.css" \
+            -o "$DOCS_DIR/stylesheets/dxworks-theme.css"
+          grep -q 'stylesheets/dxworks-theme.css' "$CONFIG_FILE" \
+            || echo "::warning::$CONFIG_FILE does not list stylesheets/dxworks-theme.css in extra_css"
+
+      - name: Build docs
+        env:
+          CONFIG_FILE: ${{ inputs.config-file }}
+          STRICT: ${{ inputs.strict && '--strict' || '' }}
+        run: zensical build -f "$CONFIG_FILE" --clean $STRICT
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ inputs.working-directory }}/site
+      - id: deployment
+        uses: actions/deploy-pages@v5

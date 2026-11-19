@@ -177,6 +177,46 @@ Creates a GitHub Release with assets. Auto-generates release notes from PRs/comm
 
 Idempotent: re-running uploads the asset to the existing release.
 
+### `release-docs.yml`
+Builds the docs with [Zensical](https://zensical.org) and publishes them to GitHub Pages. Adds the shared DXWorks theme (`docs-theme/dxworks-theme.css`: softer dark and light backgrounds, copy button above code blocks) before building.
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `ref` | string | `''` | Branch to build the docs from (empty for the repo's default branch) |
+| `working-directory` | string | `.` | Folder that holds the docs config file (paths below are relative to it) |
+| `config-file` | string | `mkdocs.yml` | Docs config file |
+| `docs-dir` | string | `docs` | Folder with the Markdown docs |
+| `strict` | boolean | `false` | Fail the build on warnings such as broken links |
+| `theme-ref` | string | `v1` | `dxworks/pipelines` tag or branch to take the shared theme from |
+
+The consuming repo needs:
+
+- GitHub Pages source set to **GitHub Actions** (Settings → Pages)
+- `stylesheets/dxworks-theme.css` listed under `extra_css` in its config file
+- `docs/stylesheets/dxworks-theme.css` in `.gitignore` (the workflow adds it at build time)
+
+```yaml
+name: Release Docs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  docs:
+    uses: dxworks/pipelines/.github/workflows/release-docs.yml@v1
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+```
+
+To preview locally with the shared theme:
+
+```shell
+curl -fsSL https://raw.githubusercontent.com/dxworks/pipelines/v1/docs-theme/dxworks-theme.css -o docs/stylesheets/dxworks-theme.css
+uvx zensical serve
+```
+
 ### Full release example (Java + npm + Docker)
 
 ```yaml
